@@ -1,13 +1,52 @@
-import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
-
-// Remember to rename these classes and interfaces!
+import { App, DropdownComponent, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
 
 interface MyPluginSettings {
-	mySetting: string;
+    selectedLanguage: string;
+	defaultLanguage: string;
+	saveDefaultLanguage: boolean;
 }
 
+const codeBlockLanguage: Record<string, string> = {
+    plaintext: 'plaintext',
+    javascript: 'javascript',
+    python: 'python',
+    java: 'java',
+    html: 'html',
+    css: 'css',
+    markdown: 'markdown',
+    typescript: 'typescript',
+    bash: 'bash',
+    shell: 'shell',
+    c: 'c',
+    cpp: 'cpp',
+    csharp: 'csharp',
+    cs: 'cs',
+    go: 'go',
+    ruby: 'ruby',
+    swift: 'swift',
+    php: 'php',
+    rust: 'rust',
+    kotlin: 'kotlin',
+    scala: 'scala',
+    dart: 'dart',
+    xml: 'xml',
+    json: 'json',
+    sql: 'sql',
+    graphql: 'graphql',
+    powershell: 'powershell',
+    yaml: 'yaml',
+    ini: 'ini',
+    latex: 'latex',
+    apache: 'apache',
+    nginx: 'nginx',
+    makefile: 'makefile',
+    dockerfile: 'dockerfile',
+};
+
 const DEFAULT_SETTINGS: MyPluginSettings = {
-	mySetting: 'default'
+	selectedLanguage: codeBlockLanguage.plaintext,
+	defaultLanguage: codeBlockLanguage.default,
+	saveDefaultLanguage: false
 }
 
 export default class MyPlugin extends Plugin {
@@ -16,50 +55,25 @@ export default class MyPlugin extends Plugin {
 	async onload() {
 		await this.loadSettings();
 
-		// This creates an icon in the left ribbon.
-		const ribbonIconEl = this.addRibbonIcon('dice', 'Sample Plugin', (evt: MouseEvent) => {
-			// Called when the user clicks the icon.
-			new Notice('This is a notice!');
+		const ribbonIconEl = this.addRibbonIcon('aperture', 'Xcode Paste Plugin', (evt: MouseEvent) => {
+			this.openSampleModal()
 		});
-		// Perform additional things with the ribbon
+
 		ribbonIconEl.addClass('my-plugin-ribbon-class');
 
-		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
 		const statusBarItemEl = this.addStatusBarItem();
 		statusBarItemEl.setText('Status Bar Text');
 
-		// This adds a simple command that can be triggered anywhere
 		this.addCommand({
-			id: 'open-sample-modal-simple',
-			name: 'Open sample modal (simple)',
-			callback: () => {
-				new SampleModal(this.app).open();
-			}
-		});
-		// This adds an editor command that can perform some operation on the current editor instance
-		this.addCommand({
-			id: 'sample-editor-command',
-			name: 'Sample editor command',
-			editorCallback: (editor: Editor, view: MarkdownView) => {
-				console.log(editor.getSelection());
-				editor.replaceSelection('Sample Editor Command');
-			}
-		});
-		// This adds a complex command that can check whether the current state of the app allows execution of the command
-		this.addCommand({
-			id: 'open-sample-modal-complex',
-			name: 'Open sample modal (complex)',
+			id: 'Paste Code',
+			name: 'Paste Code',
 			checkCallback: (checking: boolean) => {
-				// Conditions to check
 				const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
 				if (markdownView) {
-					// If checking is true, we're simply "checking" if the command can be run.
-					// If checking is false, then we want to actually perform the operation.
 					if (!checking) {
-						new SampleModal(this.app).open();
+						new SampleModal(this.app, this).open();
 					}
 
-					// This command will only show up in Command Palette when the check function returns true
 					return true;
 				}
 			}
@@ -78,6 +92,10 @@ export default class MyPlugin extends Plugin {
 		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
 	}
 
+	openSampleModal() {
+		new SampleModal(this.app, this).open();
+	}
+
 	onunload() {
 
 	}
@@ -92,19 +110,71 @@ export default class MyPlugin extends Plugin {
 }
 
 class SampleModal extends Modal {
-	constructor(app: App) {
-		super(app);
-	}
+	private inputCode: HTMLTextAreaElement;
+	private languageDropdown: DropdownComponent;
+
+	constructor(app: App, private plugin: MyPlugin) {
+        super(app);
+    }
 
 	onOpen() {
 		const {contentEl} = this;
-		contentEl.setText('Woah!');
+
+		this.contentEl.style.width = '100%'
+		this.containerEl.style.margin = 'auto'
+
+		this.plugin.settings.selectedLanguage = this.plugin.settings.saveDefaultLanguage ? this.plugin.settings.defaultLanguage : this.plugin.settings.selectedLanguage
+
+		this.languageDropdown = new DropdownComponent(contentEl)
+			.addOptions(codeBlockLanguage)
+            .setValue(this.plugin.settings.selectedLanguage)
+            .onChange(async (value) => {
+				this.plugin.settings.selectedLanguage = value;
+				await this.plugin.saveSettings();
+            });
+
+		contentEl.createEl('h2', { text: 'Paste Your Code' });
+
+        this.inputCode = contentEl.createEl('textarea', { 
+			attr: { type: 'textarea' },
+		});
+
+		this.inputCode.style.width = '100%'
+		this.inputCode.style.height = '400px'
+		this.inputCode.style.padding = '10px'
+		this.inputCode.style.boxSizing = 'border-box'
+		this.inputCode.style.marginBottom = '8px'
+
+        const buttonElement = contentEl.createEl('button', { text: 'Done' });
+		buttonElement.style.width = 'fit-content'
+		buttonElement.style.margin = 'auto'
+		buttonElement.style.display = 'block'
+
+        buttonElement.addEventListener('click', () => {
+            this.handleInput();
+        });
 	}
 
 	onClose() {
 		const {contentEl} = this;
 		contentEl.empty();
 	}
+
+	private handleInput() {
+        const inputValue = this.inputCode.value;
+		const selectedLanguage = this.plugin.settings.selectedLanguage
+		const codeBlock = `\`\`\`${selectedLanguage}\n${inputValue}\n\`\`\``;
+
+		const activeMarkdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
+
+        if (activeMarkdownView && codeBlock.trim() !== '') {
+            const editor = activeMarkdownView.editor;
+            editor.replaceSelection(codeBlock);
+            editor.focus();
+        }
+
+        this.close();
+    }
 }
 
 class SampleSettingTab extends PluginSettingTab {
@@ -121,14 +191,32 @@ class SampleSettingTab extends PluginSettingTab {
 		containerEl.empty();
 
 		new Setting(containerEl)
-			.setName('Setting #1')
-			.setDesc('It\'s a secret')
-			.addText(text => text
-				.setPlaceholder('Enter your secret')
-				.setValue(this.plugin.settings.mySetting)
-				.onChange(async (value) => {
-					this.plugin.settings.mySetting = value;
-					await this.plugin.saveSettings();
-				}));
+            .setName('Save Default Language')
+            .setDesc('Toggle to save the default language')
+            .addToggle(toggle => {
+                toggle
+                    .setValue(this.plugin.settings.saveDefaultLanguage)
+                    .onChange(async (value) => {
+                        this.plugin.settings.saveDefaultLanguage = value;
+						this.plugin.settings.selectedLanguage = this.plugin.settings.defaultLanguage
+                        await this.plugin.saveSettings();
+                        this.display();
+                    });
+            });
+
+        if (this.plugin.settings.saveDefaultLanguage) {
+            new Setting(containerEl)
+                .setName('Selected Language')
+                .setDesc('Choose the default language for code blocks')
+                .addDropdown(dropdown => {
+                    dropdown
+                        .addOptions(codeBlockLanguage)
+                        .setValue(this.plugin.settings.defaultLanguage)
+                        .onChange(async (value) => {
+                            this.plugin.settings.defaultLanguage = value;
+                            await this.plugin.saveSettings();
+                        });
+                });
+        }
 	}
 }
